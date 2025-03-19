@@ -5,14 +5,7 @@ const { db } = require('./firebase');
 const crypto = require('crypto');
 
 app.use(express.json());
-app.use(
-  cors({
-    origin: '*', // Allow requests from any origin
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Specify allowed HTTP methods
-    allowedHeaders: ['Content-Type', 'Authorization'], // Specify allowed headers
-    credentials: true, // Allow cookies and credentials
-  })
-);
+app.use(cors({ origin: '*' }));
 
 // Helper function to generate random strings
 function generateRandomString(
