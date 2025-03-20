@@ -83,29 +83,6 @@ async function generateUniquePlatformId() {
   return platformId;
 }
 
-const algorithm = 'aes-256-cbc';
-const key = Buffer.from(
-  '5f4dcc3b5aa765d61d8327deb882cf99b6c2b6f2b4f5e6d7a8c3b4f5e6d7a8c3',
-  'hex'
-); // 256-bit key
-const iv = Buffer.from('1234567890abcdef1234567890abcdef', 'hex'); // 128-bit IV
-
-// Function to encrypt a password
-function encryptPassword(password) {
-  const cipher = crypto.createCipheriv(algorithm, key, iv);
-  let encrypted = cipher.update(password, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return encrypted;
-}
-
-// Function to decrypt a password
-function decryptPassword(encryptedPassword) {
-  const decipher = crypto.createDecipheriv(algorithm, key, iv);
-  let decrypted = decipher.update(encryptedPassword, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
-
 // Root endpoint
 app.get('/', (req, res) => {
   res.send(
@@ -164,7 +141,7 @@ app.post(
       const clientData = {
         Userlog: {}, // Initialize an empty map for Userlog
         email,
-        hashedpassword: encryptPassword(hashedpass),
+        hashedpassword: hashedpass,
         imageurl,
         name,
         phone,
@@ -212,6 +189,33 @@ app.get('/redirect/:target/:apikey', async (req, res) => {
       target
     )}/apikey/${apikey}`
   );
+});
+
+app.get('/apikey/:apikey', async (req, res) => {
+  try {
+    let apikey = req.params.apikey;
+
+    if (!apikey) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'API Key is required' });
+    }
+
+    // Fetch the document from Firestore
+    const docRef = db.collection('clients').doc(apikey);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Invalid API Key' });
+    }
+
+    res.json({ success: true, data: doc.data() });
+  } catch (error) {
+    console.error('Error fetching API Key data:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
 });
 
 app.get('/checktoken/token=:token/apikey=:apikey', async (req, res) => {
