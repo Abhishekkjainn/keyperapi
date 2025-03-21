@@ -218,21 +218,50 @@ app.get('/apikey/:apikey', async (req, res) => {
   }
 });
 
+// Token verification endpoint
 app.get('/checktoken/token=:token/apikey=:apikey', async (req, res) => {
   const { token, apikey } = req.params;
 
-  // Mock user data
-  const mockUser = {
-    id: 1,
-    name: 'John Doe',
-    email: 'johndoe@example.com',
-    role: 'admin',
-    token: token,
-    apikey: apikey,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // Expires in 1 hour
-  };
+  // Validate input
+  if (!apikey) {
+    return res
+      .status(400)
+      .json({ success: false, message: 'API Key is required' });
+  }
 
-  res.json({ success: true, user: mockUser });
+  if (!token) {
+    return res
+      .status(400)
+      .json({ success: false, message: 'Token is required' });
+  }
+
+  try {
+    // Verify API Key
+    const clientDocRef = db.collection('clients').doc(apikey);
+    const clientDoc = await clientDocRef.get();
+
+    if (!clientDoc.exists) {
+      return res
+        .status(401)
+        .json({ success: false, message: 'Invalid API Key' });
+    }
+
+    // Verify Token
+    const tokenDocRef = db.collection('tokens').doc(token);
+    const tokenDoc = await tokenDocRef.get();
+
+    if (!tokenDoc.exists) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Token not found' });
+    }
+
+    // Token found, return its data
+    res.json({ success: true, data: tokenDoc.data() });
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
 });
 
 app.get(
@@ -312,7 +341,7 @@ app.get(
 );
 
 app.get(
-  '/signin/username=:username/password=:password/apikey=:apikey',
+  '/signin/username/:username/password/:password/apikey/:apikey',
   async (req, res) => {
     try {
       const { username, password, apikey } = req.params;
