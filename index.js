@@ -235,7 +235,220 @@ app.get('/checktoken/token=:token/apikey=:apikey', async (req, res) => {
   res.json({ success: true, user: mockUser });
 });
 
-// Start the server
+app.get(
+  '/registeruser/name=:name/email=:email/phone=:phone/password=:password/imageurl=:imageurl',
+  async (req, res) => {
+    const { name, email, phone, password, imageurl } = req.params;
+
+    // Validate email and phone
+    if (!isValidEmail(email)) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid email format' });
+    }
+
+    if (!isValidPhone(phone)) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid phone number format' });
+    }
+
+    try {
+      // Check if phone or email is already registered
+      const isEmailUnique = await isFieldValueUnique('users', 'email', email);
+      const isPhoneUnique = await isFieldValueUnique('users', 'phone', phone);
+
+      if (!isEmailUnique) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'The provided email is already registered. Please log in instead.',
+        });
+      }
+
+      if (!isPhoneUnique) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'The provided phone number is already registered. Please log in instead.',
+        });
+      }
+
+      // User log activities
+      const userLog = [
+        {
+          action: 'User registered',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      // User data to store in Firestore
+      const userData = {
+        name,
+        email,
+        phone,
+        hashedpassword: password,
+        imageurl,
+        createdAt: new Date().toISOString(),
+        userLog,
+      };
+
+      // Store user data in Firebase Firestore (doc ID as phone number)
+      await db.collection('users').doc(phone).set(userData);
+
+      res.json({
+        success: true,
+        message: 'User registered successfully',
+        data: userData,
+      });
+    } catch (error) {
+      console.error('Error registering user:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+      });
+    }
+  }
+);
+
+app.get(
+  '/signin/username=:username/password=:password/apikey=:apikey',
+  async (req, res) => {
+    try {
+      const { username, password, apikey } = req.params;
+
+      // ✅ Step 1: Validate API Key
+      const clientDoc = await db.collection('clients').doc(apikey).get();
+      if (!clientDoc.exists) {
+        return res.status(403).json({
+          success: false,
+          errorCode: 'INVALID_API_KEY',
+          message:
+            'Access denied. The provided API key is invalid or does not exist.',
+        });
+      }
+      const clientData = clientDoc.data();
+      const { platformname, platformid } = clientData;
+
+      // ✅ Step 2: Determine if username is email or phone
+      let searchField, searchValue;
+      if (isValidEmail(username)) {
+        searchField = 'email';
+        searchValue = username;
+      } else if (isValidPhone(username)) {
+        searchField = 'phone';
+        searchValue = username;
+      } else {
+        return res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_USERNAME_FORMAT',
+          message:
+            'The provided username must be a valid email or phone number.',
+        });
+      }
+
+      // ✅ Step 3: Fetch user from Firestore
+      const userSnapshot = await db
+        .collection('users')
+        .where(searchField, '==', searchValue)
+        .get();
+
+      if (userSnapshot.empty) {
+        return res.status(404).json({
+          success: false,
+          errorCode: 'USER_NOT_FOUND',
+          message:
+            'No user found with the provided username. Please check and try again.',
+        });
+      }
+
+      const userDoc = userSnapshot.docs[0];
+      const userData = userDoc.data();
+
+      // ✅ Step 4: Validate Password
+      if (password !== userData.hashedpassword) {
+        return res.status(401).json({
+          success: false,
+          errorCode: 'INVALID_CREDENTIALS',
+          message: 'Authentication failed. Incorrect password.',
+        });
+      }
+
+      // ✅ Step 5: Update `userLog` in `users` Collection
+      const signInLog = {
+        action: 'User signed in',
+        platformname,
+        platformid,
+        apikey,
+        timestamp: new Date().toISOString(),
+      };
+
+      const updatedUserLog = Array.isArray(userData.userLog)
+        ? [...userData.userLog, signInLog]
+        : [signInLog];
+
+      await db
+        .collection('users')
+        .doc(userDoc.id)
+        .update({ userLog: updatedUserLog });
+
+      // ✅ Step 6: Update `Userlog` in `clients` Collection
+      const newClientUserLog = {
+        email: userData.email,
+        name: userData.name,
+        phone: userData.phone,
+        imageurl: userData.imageurl,
+        timestamp: new Date().toISOString(),
+      };
+
+      const updatedClientUserLog = Array.isArray(clientData.Userlog)
+        ? [...clientData.Userlog, newClientUserLog]
+        : [newClientUserLog];
+
+      await db
+        .collection('clients')
+        .doc(apikey)
+        .update({ Userlog: updatedClientUserLog });
+
+      // ✅ Step 7: Generate a Unique Token
+      let token,
+        tokenExists = true;
+
+      while (tokenExists) {
+        token = generateRandomString(6); // Generate a 6-character alphanumeric token
+        const tokenDoc = await db.collection('tokens').doc(token).get();
+        tokenExists = tokenDoc.exists; // Ensure uniqueness
+      }
+
+      // ✅ Step 8: Store only necessary user details in Firestore
+      const tokenData = {
+        name: userData.name,
+        email: userData.email,
+        phone: userData.phone,
+        imageurl: userData.imageurl,
+        expiryTimestamp: Date.now() + 10 * 60 * 1000, // Token expires in 10 minutes
+      };
+
+      await db.collection('tokens').doc(token).set(tokenData);
+
+      // ✅ Step 9: Return the token as response
+      return res.status(200).json({
+        success: true,
+        message: 'Authentication successful. Token generated successfully.',
+        token: token, // Return only the token code
+      });
+    } catch (error) {
+      console.error('Error during sign-in:', error);
+      return res.status(500).json({
+        success: false,
+        errorCode: 'INTERNAL_SERVER_ERROR',
+        message:
+          'An unexpected error occurred while processing your request. Please try again later.',
+      });
+    }
+  }
+);
+
 app.listen(6969, () => {
   console.log('Server is running on port 6969');
 });
