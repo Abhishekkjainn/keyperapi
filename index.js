@@ -309,7 +309,6 @@ app.get(
         email,
         phone,
         hashedpassword: password,
-        imageurl,
         createdAt: new Date().toISOString(),
         userLog,
       };
