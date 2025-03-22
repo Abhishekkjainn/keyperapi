@@ -265,7 +265,7 @@ app.get('/checktoken/token=:token/apikey=:apikey', async (req, res) => {
 });
 
 app.get(
-  '/registeruser/name/:name/email/:email/phone/:phone/password/:password/imageurl/:imageurl',
+  '/registeruser/name/:name/email/:email/phone/:phone/password/:password',
   async (req, res) => {
     const { name, email, phone, password, imageurl } = req.params;
 
