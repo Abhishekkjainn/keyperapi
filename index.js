@@ -573,7 +573,7 @@ app.get(
         email: userData.email,
         name: userData.name,
         phone: userData.phone,
-        imageurl: userData.imageurl,
+        // imageurl: userData.imageurl,
         timestamp: new Date().toISOString(),
       };
 
@@ -615,7 +615,7 @@ app.get(
         name: userData.name,
         email: userData.email,
         phone: userData.phone,
-        imageurl: userData.imageurl,
+        // imageurl: userData.imageurl,
         expiryTimestamp: Date.now() + 10 * 60 * 1000, // Token expires in 10 minutes
       };
 
