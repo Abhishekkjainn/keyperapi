@@ -268,6 +268,10 @@ app.get(
   '/registeruser/name/:name/email/:email/phone/:phone/password/:password',
   async (req, res) => {
     const { name, email, phone, password } = req.params;
+    name = decodeURIComponent(name);
+    email = decodeURIComponent(email);
+    phone = decodeURIComponent(phone);
+    password = decodeURIComponent(password);
 
     try {
       // Check if email or phone already exists using a single Firestore query
