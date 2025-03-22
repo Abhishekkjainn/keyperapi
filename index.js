@@ -269,34 +269,26 @@ app.get(
   async (req, res) => {
     const { name, email, phone, password, imageurl } = req.params;
 
-    // Validate email and phone
-    if (!isValidEmail(email)) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'Invalid email format' });
-    }
-
-    if (!isValidPhone(phone)) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'Invalid phone number format' });
-    }
-
     try {
-      // Check if phone or email is already registered
-      const isEmailUnique = await isFieldValueUnique('users', 'email', email);
-      const isPhoneUnique = await isFieldValueUnique('users', 'phone', phone);
+      // Check if email or phone already exists using a single Firestore query
+      const usersRef = db.collection('users');
+      const querySnapshot = await usersRef
+        .where('email', '==', email)
+        .limit(1)
+        .get();
 
-      if (!isEmailUnique) {
-        return res.status(400).json({
+      const phoneDoc = await usersRef.doc(phone).get();
+
+      if (!querySnapshot.empty) {
+        return res.status(409).json({
           success: false,
           message:
             'The provided email is already registered. Please log in instead.',
         });
       }
 
-      if (!isPhoneUnique) {
-        return res.status(400).json({
+      if (phoneDoc.exists) {
+        return res.status(409).json({
           success: false,
           message:
             'The provided phone number is already registered. Please log in instead.',
@@ -322,19 +314,20 @@ app.get(
         userLog,
       };
 
-      // Store user data in Firebase Firestore (doc ID as phone number)
+      // Store user data in Firestore (doc ID as phone number)
       await db.collection('users').doc(phone).set(userData);
 
-      res.json({
+      return res.status(201).json({
         success: true,
         message: 'User registered successfully',
         data: userData,
       });
     } catch (error) {
       console.error('Error registering user:', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Internal server error',
+        error: error.message, // Provide error details for debugging
       });
     }
   }
