@@ -470,9 +470,6 @@ app.get(
 //   }
 // );
 
-const { db } = require('./firebase'); // Ensure Firebase is initialized and db is exported
-const { isValidEmail, isValidPhone, generateRandomString } = require('./utils'); // Utility functions
-
 app.get(
   '/signin/username/:username/password/:password/apikey/:apikey',
   async (req, res) => {
