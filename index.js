@@ -526,6 +526,28 @@ app.get('/getuser/:username', async (req, res) => {
   }
 });
 
+app.get('/getclient/:apikey', async (req, res) => {
+  try {
+    let apikey = req.params.apikey;
+    if (!apikey) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'APIKey is required' });
+    }
+    const docRef = db.collection('clients').doc(apikey);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Invalid APIKey.' });
+    }
+    res.json({ success: true, data: doc.data() });
+  } catch (error) {
+    console.error('Error fetching User data:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 app.listen(6969, () => {
   console.log('Server is running on port 6969');
 });
